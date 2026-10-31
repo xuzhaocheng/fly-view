@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">飞映</string>
+    <string name="login_title">飞映</string>
+    <string name="server_address">NAS IP 地址(如 192.168.1.8)</string>
+    <string name="port">端口(默认 5666)</string>
+    <string name="username">账号</string>
+    <string name="password">密码</string>
+    <string name="login">登 录</string>
+    <string name="login_hint_server">例如 192.168.1.8:5666</string>
+    <string name="change_server">更换服务器</string>
+    <string name="play">播放</string>
+    <string name="continue_play">继续播放</string>
+    <string name="season">季</string>
+    <string name="episode">集</string>
+    <string name="retry">重试</string>
+    <string name="cast_notification">投屏接收已开启</string>
+</resources>

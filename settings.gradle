@@ -1,0 +1,4 @@
+rootProject.name = "feiniu-tv-lite"
+include ':app'
+include ':launcher'
+include ':probe'
