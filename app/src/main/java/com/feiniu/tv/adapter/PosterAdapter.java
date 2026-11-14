@@ -27,15 +27,30 @@ public class PosterAdapter extends RecyclerView.Adapter<PosterAdapter.VH> {
     private final OnPosterClick listener;
     private final ImageUrlBuilder imageUrlBuilder;
     private final String token;
+    /** >0 时给卡片固定宽度(横向列表用);0 表示跟随父容器(网格用)。 */
+    private final int fixedWidthDp;
+    private final int layoutRes;
 
     public interface ImageUrlBuilder {
         String build(MediaItem item, int width);
     }
 
     public PosterAdapter(OnPosterClick listener, ImageUrlBuilder imageUrlBuilder, String token) {
+        this(listener, imageUrlBuilder, token, 0, R.layout.item_poster);
+    }
+
+    public PosterAdapter(OnPosterClick listener, ImageUrlBuilder imageUrlBuilder, String token,
+                         int fixedWidthDp) {
+        this(listener, imageUrlBuilder, token, fixedWidthDp, R.layout.item_poster);
+    }
+
+    public PosterAdapter(OnPosterClick listener, ImageUrlBuilder imageUrlBuilder, String token,
+                         int fixedWidthDp, int layoutRes) {
         this.listener = listener;
         this.imageUrlBuilder = imageUrlBuilder;
         this.token = token;
+        this.fixedWidthDp = fixedWidthDp;
+        this.layoutRes = layoutRes;
     }
 
     public void submit(List<MediaItem> items) {
@@ -47,7 +62,12 @@ public class PosterAdapter extends RecyclerView.Adapter<PosterAdapter.VH> {
     @NonNull
     @Override
     public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_poster, parent, false);
+        View v = LayoutInflater.from(parent.getContext()).inflate(layoutRes, parent, false);
+        if (fixedWidthDp > 0) {
+            float density = parent.getResources().getDisplayMetrics().density;
+            v.setLayoutParams(new RecyclerView.LayoutParams(
+                    (int) (fixedWidthDp * density), RecyclerView.LayoutParams.WRAP_CONTENT));
+        }
         return new VH(v);
     }
 

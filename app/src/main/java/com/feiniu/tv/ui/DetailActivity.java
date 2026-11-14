@@ -11,13 +11,11 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.feiniu.tv.R;
 import com.feiniu.tv.adapter.EpisodeAdapter;
-import com.feiniu.tv.adapter.GridSpacingItemDecoration;
 import com.feiniu.tv.adapter.PosterAdapter;
 import com.feiniu.tv.adapter.SeasonAdapter;
 import com.feiniu.tv.api.FnApiClient;
@@ -42,7 +40,7 @@ public class DetailActivity extends AppCompatActivity {
     private TextView tvTitle;
     private TextView tvOriginal;
     private LinearLayout llMeta;
-    private TextView tvMediaInfo;
+    private LinearLayout llMedia;
     private TextView tvOverview;
     private TextView tvSeasonSummary;
     private Button btnPlay;
@@ -96,7 +94,7 @@ public class DetailActivity extends AppCompatActivity {
         tvTitle = findViewById(R.id.tv_title);
         tvOriginal = findViewById(R.id.tv_original);
         llMeta = findViewById(R.id.ll_meta);
-        tvMediaInfo = findViewById(R.id.tv_media_info);
+        llMedia = findViewById(R.id.ll_media);
         tvOverview = findViewById(R.id.tv_overview);
         tvSeasonSummary = findViewById(R.id.tv_season_summary);
         btnPlay = findViewById(R.id.btn_play);
@@ -124,12 +122,8 @@ public class DetailActivity extends AppCompatActivity {
                 playEpisode(episode);
             }
         });
-        // 集卡片按 ~230dp 一列铺开,卡片里要放集标题
-        float density = getResources().getDisplayMetrics().density;
-        int screenWidthDp = (int) (getResources().getDisplayMetrics().widthPixels / density);
-        int spanCount = Math.max(4, Math.min(6, screenWidthDp / 230));
-        rvEpisodes.setLayoutManager(new GridLayoutManager(this, spanCount));
-        rvEpisodes.addItemDecoration(new GridSpacingItemDecoration((int) (6 * density), spanCount));
+        // 集卡片横向滑动:一屏放几张,左右键浏览
+        rvEpisodes.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
         rvEpisodes.setAdapter(episodeAdapter);
 
         moreAdapter = new PosterAdapter(new PosterAdapter.OnPosterClick() {
@@ -142,7 +136,7 @@ public class DetailActivity extends AppCompatActivity {
             public String build(MediaItem item, int width) {
                 return client.imageUrl(item.posterGuid(), width);
             }
-        }, token);
+        }, token, 0, R.layout.item_poster_compact);
         rvMore.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
         rvMore.setAdapter(moreAdapter);
 
@@ -324,37 +318,37 @@ public class DetailActivity extends AppCompatActivity {
     }
 
     /** 显示媒体信息:分辨率 / 视频编码 / 音频编码 / 文件大小 / 字幕数。 */
+    /** 文件信息排成两列小表,比一长串 accent 文字更像"资料",也更耐看。 */
     private void bindMediaInfo(StreamList sl) {
+        llMedia.removeAllViews();
         if (sl == null || sl.video_streams == null || sl.video_streams.isEmpty()) {
-            tvMediaInfo.setText("");
             return;
         }
         StreamList.Stream v = sl.video_streams.get(0);
         StreamList.Stream a = (sl.audio_streams != null && !sl.audio_streams.isEmpty())
                 ? sl.audio_streams.get(0) : null;
 
-        StringBuilder sb = new StringBuilder();
+        String resolution = "";
         if (v.resolution_type != null && !v.resolution_type.isEmpty()) {
-            sb.append(v.resolution_type.toUpperCase());
+            resolution = v.resolution_type.toUpperCase();
         } else if (v.width > 0 && v.height > 0) {
-            sb.append(v.height).append("p");
+            resolution = v.height + "p";
         }
-        if (v.codec_name != null) {
-            if (sb.length() > 0) {
-                sb.append(" · ");
-            }
-            sb.append("H.265".equalsIgnoreCase(v.codec_name) ? "HEVC"
-                    : v.codec_name.toUpperCase());
-        }
+        String codec = v.codec_name == null ? ""
+                : ("H.265".equalsIgnoreCase(v.codec_name) ? "HEVC" : v.codec_name.toUpperCase());
+        String audio = "";
         if (a != null && a.codec_name != null) {
-            sb.append(" · ").append(a.codec_name.toUpperCase());
+            audio = a.codec_name.toUpperCase();
             if (a.channels > 0) {
-                sb.append(" ").append(a.channels).append("声道");
+                audio += " " + a.channels + "声道";
             }
         }
-        if (sl.files != null && !sl.files.isEmpty() && sl.files.get(0).size > 0) {
-            sb.append(" · ").append(formatSize(sl.files.get(0).size));
-        }
+        String size = (sl.files != null && !sl.files.isEmpty() && sl.files.get(0).size > 0)
+                ? formatSize(sl.files.get(0).size) : "";
+
+        addMediaRow("分辨率", resolution, "编码", codec);
+        addMediaRow("音轨", audio, "大小", size);
+
         if (sl.subtitle_streams != null && !sl.subtitle_streams.isEmpty()) {
             int embedded = 0;
             int external = 0;
@@ -365,18 +359,57 @@ public class DetailActivity extends AppCompatActivity {
                     embedded++;
                 }
             }
-            sb.append(" · ");
+            StringBuilder sub = new StringBuilder();
             if (embedded > 0) {
-                sb.append("内嵌字幕").append(embedded);
+                sub.append("内嵌 ").append(embedded);
             }
             if (external > 0) {
-                if (embedded > 0) {
-                    sb.append(" · ");
+                if (sub.length() > 0) {
+                    sub.append(" · ");
                 }
-                sb.append("外挂字幕").append(external);
+                sub.append("外挂 ").append(external);
             }
+            addMediaRow("字幕", sub.toString(), null, null);
         }
-        tvMediaInfo.setText(sb.toString());
+    }
+
+    private void addMediaRow(String label1, String value1, String label2, String value2) {
+        if (TextUtils.isEmpty(value1) && TextUtils.isEmpty(value2)) {
+            return;
+        }
+        LinearLayout row = new LinearLayout(this);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        rlp.topMargin = dp(8);
+        row.addView(mediaCell(label1, value1),
+                new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        if (label2 != null) {
+            row.addView(mediaCell(label2, value2),
+                    new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        }
+        llMedia.addView(row, rlp);
+    }
+
+    private View mediaCell(String label, String value) {
+        LinearLayout cell = new LinearLayout(this);
+        cell.setOrientation(LinearLayout.HORIZONTAL);
+        TextView l = new TextView(this);
+        l.setText(label);
+        l.setTextSize(13);
+        l.setTextColor(getResources().getColor(R.color.text_tertiary));
+        TextView v = new TextView(this);
+        v.setText(value);
+        v.setTextSize(14);
+        v.setTextColor(getResources().getColor(R.color.text_primary));
+        LinearLayout.LayoutParams vlp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        vlp.leftMargin = dp(10);
+        cell.addView(l);
+        cell.addView(v, vlp);
+        return cell;
     }
 
     private static String formatSize(long bytes) {
@@ -558,26 +591,48 @@ public class DetailActivity extends AppCompatActivity {
 
     // ------------------------------------------------------------ meta 药丸
 
+    /** 评分做成一颗强调色药丸,其余信息排成一行小字,避免一排方块显得碎。 */
     private void buildMetaPills(ItemDetail d) {
         llMeta.removeAllViews();
         if (d.vote_average > 0) {
             addPill("★ " + String.format("%.1f", d.vote_average), true);
         }
+        StringBuilder rest = new StringBuilder();
         if (d.release_date != null && d.release_date.length() >= 4) {
-            addPill(d.release_date.substring(0, 4), false);
+            rest.append(d.release_date, 0, 4);
         }
         if (d.runtime > 0) {
-            addPill(formatRuntime(d.runtime), false);
+            appendSeparator(rest).append(formatRuntime(d.runtime));
         }
         if (!TextUtils.isEmpty(d.content_ratings) && !"NR".equalsIgnoreCase(d.content_ratings)) {
-            addPill(d.content_ratings, false);
+            appendSeparator(rest).append(d.content_ratings);
         }
         if (d.production_countries != null && !d.production_countries.isEmpty()) {
-            addPill(countryLabel(d.production_countries.get(0)), false);
+            appendSeparator(rest).append(countryLabel(d.production_countries.get(0)));
         }
         if (d.number_of_seasons > 0) {
-            addPill(d.number_of_seasons + " 季 · " + d.number_of_episodes + " 集", false);
+            appendSeparator(rest).append(d.number_of_seasons).append(" 季 · ")
+                    .append(d.number_of_episodes).append(" 集");
         }
+        if (rest.length() == 0) {
+            return;
+        }
+        TextView meta = new TextView(this);
+        meta.setText(rest.toString());
+        meta.setTextSize(16);
+        meta.setTextColor(getResources().getColor(R.color.text_secondary));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.leftMargin = dp(14);
+        llMeta.addView(meta, lp);
+    }
+
+    private static StringBuilder appendSeparator(StringBuilder sb) {
+        if (sb.length() > 0) {
+            sb.append("  ·  ");
+        }
+        return sb;
     }
 
     private void addPill(String text, boolean accent) {
