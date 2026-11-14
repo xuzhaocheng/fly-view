@@ -39,6 +39,13 @@ public class DetailActivity extends AppCompatActivity {
     private ImageView imgPoster;
     private TextView tvTitle;
     private TextView tvOriginal;
+    private LinearLayout llInfo;
+    private View llContent;
+    private TextView tvLoading;
+    private boolean infoReady;
+    private boolean episodesReady;
+    private boolean moreReady;
+    private boolean contentRevealed;
     private LinearLayout llMeta;
     private LinearLayout llMedia;
     private TextView tvOverview;
@@ -93,6 +100,19 @@ public class DetailActivity extends AppCompatActivity {
         imgPoster = findViewById(R.id.img_poster);
         tvTitle = findViewById(R.id.tv_title);
         tvOriginal = findViewById(R.id.tv_original);
+        llInfo = findViewById(R.id.ll_info);
+        llContent = findViewById(R.id.ll_content);
+        tvLoading = findViewById(R.id.tv_loading);
+        // 接口再慢也不能一直停在"加载中"
+        llContent.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                infoReady = true;
+                episodesReady = true;
+                moreReady = true;
+                revealInfo();
+            }
+        }, 1200);
         llMeta = findViewById(R.id.ll_meta);
         llMedia = findViewById(R.id.ll_media);
         tvOverview = findViewById(R.id.tv_overview);
@@ -210,7 +230,14 @@ public class DetailActivity extends AppCompatActivity {
                             }
                         });
                     } catch (Exception ignored) {
-                        // 媒体信息拉取失败不影响详情展示
+                        // 媒体信息拉取失败不影响详情展示,但页面还是得露出来
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                infoReady = true;
+                                revealInfo();
+                            }
+                        });
                     }
                     if ("TV".equals(type) || "Series".equals(type)) {
                         // 查当前看到哪一集(play/info 顶层 guid 即当前集,parent_guid 即所属季)
@@ -259,6 +286,10 @@ public class DetailActivity extends AppCompatActivity {
                         @Override
                         public void run() {
                             tvOverview.setText("加载失败:\n" + Err.describe(e));
+                            infoReady = true;
+                            moreReady = true;
+                            episodesReady = true;
+                            revealInfo();
                         }
                     });
                 }
@@ -321,7 +352,9 @@ public class DetailActivity extends AppCompatActivity {
     /** 文件信息排成两列小表,比一长串 accent 文字更像"资料",也更耐看。 */
     private void bindMediaInfo(StreamList sl) {
         llMedia.removeAllViews();
+        infoReady = true;
         if (sl == null || sl.video_streams == null || sl.video_streams.isEmpty()) {
+            revealInfo();
             return;
         }
         StreamList.Stream v = sl.video_streams.get(0);
@@ -371,6 +404,39 @@ public class DetailActivity extends AppCompatActivity {
             }
             addMediaRow("字幕", sub.toString(), null, null);
         }
+        revealInfo();
+    }
+
+    /**
+     * 数据齐了再一次性显示整页:先空后涨的版式跳动比加载慢更难受。
+     * 剧集页要等剧集列表也回来,否则季/集区会二次撑开。
+     */
+    private void revealInfo() {
+        if (contentRevealed) {
+            return;
+        }
+        if (!infoReady) {
+            return;
+        }
+        if (isSeries() ? !episodesReady : !moreReady) {
+            return;
+        }
+        contentRevealed = true;
+        if (llInfo != null) {
+            llInfo.setVisibility(View.VISIBLE);
+        }
+        if (llContent != null) {
+            llContent.setVisibility(View.VISIBLE);
+            llContent.setAlpha(0f);
+            llContent.animate().alpha(1f).setDuration(160).start();
+        }
+        if (tvLoading != null) {
+            tvLoading.setVisibility(View.GONE);
+        }
+    }
+
+    private boolean isSeries() {
+        return "TV".equals(type) || "Series".equals(type);
     }
 
     private void addMediaRow(String label1, String value1, String label2, String value2) {
@@ -482,6 +548,8 @@ public class DetailActivity extends AppCompatActivity {
             text += " · 已看 " + seen + " 集";
         }
         tvSeasonSummary.setText(text);
+        episodesReady = true;
+        revealInfo();
     }
 
     /** 换季:更新高亮并重新拉这一季的集。 */
@@ -553,17 +621,25 @@ public class DetailActivity extends AppCompatActivity {
                             rest.add(it);
                         }
                     }
-                    if (rest.isEmpty()) {
-                        return;
-                    }
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
-                            moreAdapter.submit(rest);
-                            llMore.setVisibility(View.VISIBLE);
+                            if (!rest.isEmpty()) {
+                                moreAdapter.submit(rest);
+                                llMore.setVisibility(View.VISIBLE);
+                            }
+                            moreReady = true;
+                            revealInfo();
                         }
                     });
                 } catch (Exception ignored) {
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            moreReady = true;
+                            revealInfo();
+                        }
+                    });
                 }
             }
         }).start();

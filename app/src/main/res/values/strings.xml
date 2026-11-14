@@ -13,6 +13,7 @@
     <string name="continue_play">继续播放</string>
     <string name="restart">从头播放</string>
     <string name="more_like_this">更多影片</string>
+    <string name="loading">加载中…</string>
     <string name="episode_label">第 %1$d 集</string>
     <string name="season">季</string>
     <string name="episode">集</string>
