@@ -18,10 +18,13 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.feiniu.tv.R;
 import com.feiniu.tv.adapter.EpisodeAdapter;
 import com.feiniu.tv.adapter.GridSpacingItemDecoration;
+import com.feiniu.tv.adapter.PosterAdapter;
 import com.feiniu.tv.adapter.SeasonAdapter;
 import com.feiniu.tv.api.FnApiClient;
 import com.feiniu.tv.api.model.Episode;
 import com.feiniu.tv.api.model.ItemDetail;
+import com.feiniu.tv.api.model.MediaDb;
+import com.feiniu.tv.api.model.MediaItem;
 import com.feiniu.tv.api.model.Season;
 import com.feiniu.tv.api.model.StreamList;
 import com.feiniu.tv.util.Err;
@@ -37,15 +40,21 @@ public class DetailActivity extends AppCompatActivity {
     private ImageView imgBackdrop;
     private ImageView imgPoster;
     private TextView tvTitle;
-    private TextView tvMeta;
+    private TextView tvOriginal;
+    private LinearLayout llMeta;
     private TextView tvMediaInfo;
     private TextView tvOverview;
+    private TextView tvSeasonSummary;
     private Button btnPlay;
+    private Button btnRestart;
     private View llPlay;
     private LinearLayout llSeasons;
     private LinearLayout llEpisodes;
+    private LinearLayout llMore;
     private RecyclerView rvSeasons;
     private RecyclerView rvEpisodes;
+    private RecyclerView rvMore;
+    private PosterAdapter moreAdapter;
 
     private FnApiClient client;
     private String guid;
@@ -85,15 +94,20 @@ public class DetailActivity extends AppCompatActivity {
         imgBackdrop = findViewById(R.id.img_backdrop);
         imgPoster = findViewById(R.id.img_poster);
         tvTitle = findViewById(R.id.tv_title);
-        tvMeta = findViewById(R.id.tv_meta);
+        tvOriginal = findViewById(R.id.tv_original);
+        llMeta = findViewById(R.id.ll_meta);
         tvMediaInfo = findViewById(R.id.tv_media_info);
         tvOverview = findViewById(R.id.tv_overview);
+        tvSeasonSummary = findViewById(R.id.tv_season_summary);
         btnPlay = findViewById(R.id.btn_play);
+        btnRestart = findViewById(R.id.btn_restart);
         llPlay = findViewById(R.id.ll_play_btn);
         llSeasons = findViewById(R.id.ll_seasons);
         llEpisodes = findViewById(R.id.ll_episodes);
         rvSeasons = findViewById(R.id.rv_seasons);
         rvEpisodes = findViewById(R.id.rv_episodes);
+        llMore = findViewById(R.id.ll_more);
+        rvMore = findViewById(R.id.rv_more);
 
         seasonAdapter = new SeasonAdapter(new SeasonAdapter.OnSeasonClick() {
             @Override
@@ -110,20 +124,27 @@ public class DetailActivity extends AppCompatActivity {
                 playEpisode(episode);
             }
         });
-        // 集列表按屏幕宽度动态列数,紧凑铺满
+        // 集卡片按 ~230dp 一列铺开,卡片里要放集标题
         float density = getResources().getDisplayMetrics().density;
         int screenWidthDp = (int) (getResources().getDisplayMetrics().widthPixels / density);
-        int spanCount = Math.max(8, screenWidthDp / 72);
+        int spanCount = Math.max(4, Math.min(6, screenWidthDp / 230));
         rvEpisodes.setLayoutManager(new GridLayoutManager(this, spanCount));
         rvEpisodes.addItemDecoration(new GridSpacingItemDecoration((int) (6 * density), spanCount));
         rvEpisodes.setAdapter(episodeAdapter);
 
-        btnPlay.setOnClickListener(new View.OnClickListener() {
+        moreAdapter = new PosterAdapter(new PosterAdapter.OnPosterClick() {
             @Override
-            public void onClick(View v) {
-                play(guid);
+            public void onClick(MediaItem item) {
+                openDetail(item);
             }
-        });
+        }, new PosterAdapter.ImageUrlBuilder() {
+            @Override
+            public String build(MediaItem item, int width) {
+                return client.imageUrl(item.posterGuid(), width);
+            }
+        }, token);
+        rvMore.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
+        rvMore.setAdapter(moreAdapter);
 
         loadDetail();
     }
@@ -234,6 +255,7 @@ public class DetailActivity extends AppCompatActivity {
                             public void run() {
                                 llSeasons.setVisibility(View.GONE);
                                 llEpisodes.setVisibility(View.GONE);
+                                loadMore();
                             }
                         });
                     }
@@ -260,18 +282,39 @@ public class DetailActivity extends AppCompatActivity {
         }
         itemTitle = title;
         tvTitle.setText(title);
-        StringBuilder meta = new StringBuilder();
-        if (d.release_date != null && !d.release_date.isEmpty()) {
-            meta.append(d.release_date);
+
+        String original = d.original_title == null ? "" : d.original_title.trim();
+        if (!original.isEmpty() && !original.equals(title)) {
+            tvOriginal.setText(original);
+            tvOriginal.setVisibility(View.VISIBLE);
+        } else {
+            tvOriginal.setVisibility(View.GONE);
         }
-        if (d.vote_average > 0) {
-            if (meta.length() > 0) {
-                meta.append(" · ");
-            }
-            meta.append("★").append(String.format("%.1f", d.vote_average));
-        }
-        tvMeta.setText(meta.toString());
+
+        buildMetaPills(d);
         tvOverview.setText(d.overview);
+
+        // 看过就提供「继续播放」,同时给一条「从头播放」的退路
+        final boolean resume = d.watched_ts > 0;
+        // 续播时把上次的位置写在按钮上,免得用户猜"继续"是从哪继续
+        btnPlay.setText(resume
+                ? getString(R.string.continue_play) + "  " + formatClock(d.watched_ts)
+                : getString(R.string.play));
+        btnRestart.setVisibility(resume ? View.VISIBLE : View.GONE);
+        final int startMs = resume ? (int) (d.watched_ts * 1000) : 0;
+        btnPlay.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                play(guid, startMs);
+            }
+        });
+        btnRestart.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                play(guid, 0);
+            }
+        });
+
         int radius = (int) (8 * getResources().getDisplayMetrics().density);
         ImageLoader.load(this, imgPoster, client.imageUrl(d.posters, 400), token, radius);
         String backdrop = client.imageUrl(d.backdrops, 1280);
@@ -387,6 +430,27 @@ public class DetailActivity extends AppCompatActivity {
         });
     }
 
+    /** 季行右侧的小结:本季多少集、看过几集。 */
+    private void bindSeasonSummary(List<Episode> episodes) {
+        if (tvSeasonSummary == null) {
+            return;
+        }
+        int total = episodes == null ? 0 : episodes.size();
+        int seen = 0;
+        if (episodes != null) {
+            for (Episode e : episodes) {
+                if (e.watched == 1 || e.watchedRatio() >= 0.9f) {
+                    seen++;
+                }
+            }
+        }
+        String text = "本季 " + total + " 集";
+        if (seen > 0) {
+            text += " · 已看 " + seen + " 集";
+        }
+        tvSeasonSummary.setText(text);
+    }
+
     /** 换季:更新高亮并重新拉这一季的集。 */
     private void selectSeason(Season season) {
         if (season == null) {
@@ -411,6 +475,7 @@ public class DetailActivity extends AppCompatActivity {
                             episodeList.addAll(episodes);
                             episodeAdapter.setCurrentGuid(currentEpisodeGuid);
                             episodeAdapter.submit(episodes);
+                            bindSeasonSummary(episodes);
                             // 滚动到当前观看的集
                             int idx = episodeAdapter.indexOf(currentEpisodeGuid);
                             if (idx >= 0) {
@@ -432,11 +497,150 @@ public class DetailActivity extends AppCompatActivity {
         }).start();
     }
 
-    private void play(String itemGuid) {
+    /** 电影页底部铺一排同库影片,免得下半屏空着。 */
+    private void loadMore() {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    MediaDb target = null;
+                    for (MediaDb db : client.getMediaDbList()) {
+                        if ("Movie".equals(db.category)) {
+                            target = db;
+                            break;
+                        }
+                    }
+                    if (target == null) {
+                        return;
+                    }
+                    List<MediaItem> items = client.getItemList(target.guid, 12);
+                    final List<MediaItem> rest = new ArrayList<MediaItem>();
+                    for (MediaItem it : items) {
+                        if (it.guid != null && !it.guid.equals(guid)) {
+                            rest.add(it);
+                        }
+                    }
+                    if (rest.isEmpty()) {
+                        return;
+                    }
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            moreAdapter.submit(rest);
+                            llMore.setVisibility(View.VISIBLE);
+                        }
+                    });
+                } catch (Exception ignored) {
+                }
+            }
+        }).start();
+    }
+
+    private void openDetail(MediaItem item) {
+        if (item == null || TextUtils.isEmpty(item.guid)) {
+            return;
+        }
+        Intent intent = new Intent(this, DetailActivity.class);
+        intent.putExtra("guid", item.guid);
+        intent.putExtra("type", item.type != null ? item.type : "Movie");
+        startActivity(intent);
+    }
+
+    private void play(String itemGuid, int startMs) {
         Intent intent = new Intent(this, PlayerActivity.class);
         intent.putExtra("guid", itemGuid);
         intent.putExtra("title", itemTitle);
+        if (startMs > 0) {
+            intent.putExtra("start_ms", startMs);
+        }
         startActivity(intent);
+    }
+
+    // ------------------------------------------------------------ meta 药丸
+
+    private void buildMetaPills(ItemDetail d) {
+        llMeta.removeAllViews();
+        if (d.vote_average > 0) {
+            addPill("★ " + String.format("%.1f", d.vote_average), true);
+        }
+        if (d.release_date != null && d.release_date.length() >= 4) {
+            addPill(d.release_date.substring(0, 4), false);
+        }
+        if (d.runtime > 0) {
+            addPill(formatRuntime(d.runtime), false);
+        }
+        if (!TextUtils.isEmpty(d.content_ratings) && !"NR".equalsIgnoreCase(d.content_ratings)) {
+            addPill(d.content_ratings, false);
+        }
+        if (d.production_countries != null && !d.production_countries.isEmpty()) {
+            addPill(countryLabel(d.production_countries.get(0)), false);
+        }
+        if (d.number_of_seasons > 0) {
+            addPill(d.number_of_seasons + " 季 · " + d.number_of_episodes + " 集", false);
+        }
+    }
+
+    private void addPill(String text, boolean accent) {
+        TextView pill = new TextView(this);
+        pill.setText(text);
+        pill.setTextSize(14);
+        pill.setPadding(dp(14), dp(7), dp(14), dp(7));
+        pill.setBackgroundResource(accent ? R.drawable.bg_pill_accent : R.drawable.bg_pill);
+        pill.setTextColor(getResources().getColor(accent ? R.color.accent : R.color.text_secondary));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        lp.rightMargin = dp(10);
+        pill.setLayoutParams(lp);
+        llMeta.addView(pill);
+    }
+
+    private int dp(int v) {
+        return (int) (v * getResources().getDisplayMetrics().density);
+    }
+
+    private static String formatClock(long seconds) {
+        long h = seconds / 3600;
+        long m = (seconds % 3600) / 60;
+        long s = seconds % 60;
+        if (h > 0) {
+            return String.format("%d:%02d:%02d", h, m, s);
+        }
+        return String.format("%d:%02d", m, s);
+    }
+
+    private static String formatRuntime(int minutes) {
+        if (minutes < 60) {
+            return minutes + " 分钟";
+        }
+        int h = minutes / 60;
+        int m = minutes % 60;
+        return m == 0 ? h + " 小时" : h + " 小时 " + m + " 分";
+    }
+
+    private static String countryLabel(String code) {
+        if (code == null) {
+            return "";
+        }
+        switch (code) {
+            case "CN": return "中国";
+            case "US": return "美国";
+            case "JP": return "日本";
+            case "GB": return "英国";
+            case "FR": return "法国";
+            case "DE": return "德国";
+            case "IN": return "印度";
+            case "KR": return "韩国";
+            case "TW": return "台湾";
+            case "HK": return "香港";
+            case "ES": return "西班牙";
+            case "IT": return "意大利";
+            case "CA": return "加拿大";
+            case "AU": return "澳大利亚";
+            case "RU": return "俄罗斯";
+            case "TH": return "泰国";
+            default: return code;
+        }
     }
 
     /** 播放某一集,并带上下一集 guid 用于自动连播。 */
