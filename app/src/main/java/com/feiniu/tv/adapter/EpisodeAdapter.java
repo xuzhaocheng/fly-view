@@ -87,20 +87,19 @@ public class EpisodeAdapter extends RecyclerView.Adapter<EpisodeAdapter.VH> {
         });
     }
 
-    /** 底部进度条:按已看比例分配两段宽度,没看过就整条隐藏。 */
+    /**
+     * 底部进度轨常驻(空轨道本身也是卡片的一部分,补住下半部的空白),
+     * 已看比例只决定填充长度;没看过的就是一条空轨道。
+     */
     private static void bindProgress(VH holder, float ratio) {
-        // 只看了几秒的进度线画出来也就 1px,没有信息量
-        if (ratio < 0.02f) {
-            holder.llProgress.setVisibility(View.GONE);
-            return;
-        }
+        float filled = ratio <= 0f ? 0f : (ratio > 1f ? 1f : ratio);
         holder.llProgress.setVisibility(View.VISIBLE);
         LinearLayout.LayoutParams fill =
                 (LinearLayout.LayoutParams) holder.progressFill.getLayoutParams();
         LinearLayout.LayoutParams rest =
                 (LinearLayout.LayoutParams) holder.progressRest.getLayoutParams();
-        fill.weight = ratio;
-        rest.weight = Math.max(0.0001f, 1f - ratio);
+        fill.weight = Math.max(0.0001f, filled);
+        rest.weight = Math.max(0.0001f, 1f - filled);
         holder.progressFill.setLayoutParams(fill);
         holder.progressRest.setLayoutParams(rest);
     }

@@ -60,6 +60,7 @@ public class DetailActivity extends AppCompatActivity {
     private RecyclerView rvEpisodes;
     private RecyclerView rvMore;
     private PosterAdapter moreAdapter;
+    private View fadeEpLeft, fadeEpRight, fadeMoreLeft, fadeMoreRight;
 
     private FnApiClient client;
     private String guid;
@@ -126,6 +127,10 @@ public class DetailActivity extends AppCompatActivity {
         rvEpisodes = findViewById(R.id.rv_episodes);
         llMore = findViewById(R.id.ll_more);
         rvMore = findViewById(R.id.rv_more);
+        fadeEpLeft = findViewById(R.id.fade_ep_left);
+        fadeEpRight = findViewById(R.id.fade_ep_right);
+        fadeMoreLeft = findViewById(R.id.fade_more_left);
+        fadeMoreRight = findViewById(R.id.fade_more_right);
 
         seasonAdapter = new SeasonAdapter(new SeasonAdapter.OnSeasonClick() {
             @Override
@@ -159,6 +164,9 @@ public class DetailActivity extends AppCompatActivity {
         }, token, 0, R.layout.item_poster_compact);
         rvMore.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
         rvMore.setAdapter(moreAdapter);
+
+        bindEdgeFade(rvEpisodes, fadeEpLeft, fadeEpRight);
+        bindEdgeFade(rvMore, fadeMoreLeft, fadeMoreRight);
 
         loadDetail();
     }
@@ -510,6 +518,71 @@ public class DetailActivity extends AppCompatActivity {
      * 剧集页没有播放按钮,系统不会自动把焦点给 RecyclerView 的子项,
      * 这里兜底把焦点放到第一季上,否则方向键完全没反应。
      */
+    /**
+     * 横向列表的左右边缘渐隐:该方向还有内容才显示,用来提示可以继续滑。
+     * 不往列表里塞箭头,免得跟焦点导航打架。
+     */
+    private void bindEdgeFade(final RecyclerView rv, final View left, final View right) {
+        if (rv == null) {
+            return;
+        }
+        rv.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
+                updateEdgeFade(rv, left, right);
+            }
+        });
+        // 数据变化/scrollToPosition 之后要等整帧布局结束才知道能不能往两边滚
+        rv.getViewTreeObserver().addOnGlobalLayoutListener(
+                new android.view.ViewTreeObserver.OnGlobalLayoutListener() {
+                    @Override
+                    public void onGlobalLayout() {
+                        // 只同步高度:可见性由数据初始化和滚动事件决定,避免布局时序误判
+                        syncHeight(left, rv.getHeight());
+                        syncHeight(right, rv.getHeight());
+                    }
+                });
+        rv.post(new Runnable() {
+            @Override
+            public void run() {
+                updateEdgeFade(rv, left, right);
+            }
+        });
+    }
+
+    private static void updateEdgeFade(RecyclerView rv, View left, View right) {
+        // 用可见区间判断,比滚动范围/偏移稳:那些值在布局刚结束时还没定下来
+        boolean canLeft = false;
+        boolean canRight = false;
+        RecyclerView.LayoutManager lm = rv.getLayoutManager();
+        if (lm instanceof LinearLayoutManager && rv.getAdapter() != null) {
+            LinearLayoutManager linear = (LinearLayoutManager) lm;
+            int first = linear.findFirstVisibleItemPosition();
+            int last = linear.findLastVisibleItemPosition();
+            int total = rv.getAdapter().getItemCount();
+            canLeft = first > 0;
+            canRight = last >= 0 && last < total - 1;
+        }
+        int h = rv.getHeight();
+        if (left != null) {
+            syncHeight(left, h);
+            left.setVisibility(canLeft ? View.VISIBLE : View.GONE);
+        }
+        if (right != null) {
+            syncHeight(right, h);
+            right.setVisibility(canRight ? View.VISIBLE : View.GONE);
+        }
+    }
+
+    /** 渐隐层高度跟随列表(match_parent 会把 wrap_content 的容器撑满屏幕)。 */
+    private static void syncHeight(View v, int height) {
+        if (height <= 0 || v.getLayoutParams() == null || v.getLayoutParams().height == height) {
+            return;
+        }
+        v.getLayoutParams().height = height;
+        v.requestLayout();
+    }
+
     private void ensureFocus() {
         if (getCurrentFocus() != null) {
             return;
@@ -577,11 +650,16 @@ public class DetailActivity extends AppCompatActivity {
                             episodeAdapter.setCurrentGuid(currentEpisodeGuid);
                             episodeAdapter.submit(episodes);
                             bindSeasonSummary(episodes);
-                            // 滚动到当前观看的集
+                            // 滚动到当前观看的集,再按滚动后的位置算左右渐隐
                             int idx = episodeAdapter.indexOf(currentEpisodeGuid);
                             if (idx >= 0) {
                                 rvEpisodes.scrollToPosition(idx);
                             }
+                            // 初始渐隐按数据直接定:列表滚到当前集,右侧还有没有看集数
+                            syncHeight(fadeEpLeft, rvEpisodes.getHeight());
+                            syncHeight(fadeEpRight, rvEpisodes.getHeight());
+                            fadeEpLeft.setVisibility(idx > 0 ? View.VISIBLE : View.GONE);
+                            fadeEpRight.setVisibility(episodes.size() > 5 ? View.VISIBLE : View.GONE);
                             ensureFocus();
                         }
                     });
@@ -627,6 +705,12 @@ public class DetailActivity extends AppCompatActivity {
                             if (!rest.isEmpty()) {
                                 moreAdapter.submit(rest);
                                 llMore.setVisibility(View.VISIBLE);
+                                rvMore.post(new Runnable() {
+                                    @Override
+                                    public void run() {
+                                        updateEdgeFade(rvMore, fadeMoreLeft, fadeMoreRight);
+                                    }
+                                });
                             }
                             moreReady = true;
                             revealInfo();

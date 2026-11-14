@@ -198,10 +198,35 @@
                 style="@style/DetailSectionHeader"
                 android:text="@string/episode" />
 
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/rv_episodes"
+            <FrameLayout
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content" />
+                android:layout_height="wrap_content">
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rv_episodes"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+
+                <View
+                    android:id="@+id/fade_ep_left"
+                    android:layout_width="44dp"
+                    android:layout_height="1dp"
+                    android:layout_gravity="start"
+                    android:background="@drawable/fade_left"
+                    android:clickable="false"
+                    android:focusable="false"
+                    android:visibility="gone" />
+
+                <View
+                    android:id="@+id/fade_ep_right"
+                    android:layout_width="44dp"
+                    android:layout_height="1dp"
+                    android:layout_gravity="end"
+                    android:background="@drawable/fade_right"
+                    android:clickable="false"
+                    android:focusable="false"
+                    android:visibility="gone" />
+            </FrameLayout>
         </LinearLayout>
 
         <LinearLayout
@@ -216,11 +241,36 @@
                 style="@style/DetailSectionHeader"
                 android:text="@string/more_like_this" />
 
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/rv_more"
+            <FrameLayout
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:paddingBottom="6dp" />
+                android:layout_height="wrap_content">
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/rv_more"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingBottom="6dp" />
+
+                <View
+                    android:id="@+id/fade_more_left"
+                    android:layout_width="44dp"
+                    android:layout_height="1dp"
+                    android:layout_gravity="start"
+                    android:background="@drawable/fade_left"
+                    android:clickable="false"
+                    android:focusable="false"
+                    android:visibility="gone" />
+
+                <View
+                    android:id="@+id/fade_more_right"
+                    android:layout_width="44dp"
+                    android:layout_height="1dp"
+                    android:layout_gravity="end"
+                    android:background="@drawable/fade_right"
+                    android:clickable="false"
+                    android:focusable="false"
+                    android:visibility="gone" />
+            </FrameLayout>
         </LinearLayout>
     </LinearLayout>
     </ScrollView>
