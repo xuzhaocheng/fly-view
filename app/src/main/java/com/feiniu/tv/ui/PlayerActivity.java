@@ -95,6 +95,8 @@ public class PlayerActivity extends AppCompatActivity implements SurfaceHolder.C
     private int countdownSeconds = 0;
     private boolean skippedOpening = false;
     private boolean skippedEnding = false;
+    /** 「继续观看」直接起播时的续播位置,0 表示从头播。 */
+    private int startMs = 0;
 
     private final Runnable countdownRunnable = new Runnable() {
         @Override
@@ -138,6 +140,7 @@ public class PlayerActivity extends AppCompatActivity implements SurfaceHolder.C
             }
         }
         guid = getIntent().getStringExtra("guid");
+        startMs = getIntent().getIntExtra("start_ms", 0);
         nextGuid = getIntent().getStringExtra("next_guid");
         nextTitle = getIntent().getStringExtra("next_title");
         if (castMode) {
@@ -431,6 +434,11 @@ public class PlayerActivity extends AppCompatActivity implements SurfaceHolder.C
                         castSession.onPrepared(mp.getDuration());
                         wantPlay = castSession.state() == CastSession.State.PLAYING;
                         handledState = castSession.state();
+                    }
+                    if (!castMode && startMs > 0) {
+                        // 「继续观看」直接起播:先落到上次的位置,别从头放。
+                        seekTo(startMs);
+                        startMs = 0;
                     }
                     if (wantPlay) {
                         mp.start();

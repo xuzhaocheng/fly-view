@@ -2,6 +2,7 @@ package com.feiniu.tv.ui;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.text.TextUtils;
 import android.util.Log;
 import android.view.View;
 import android.widget.TextView;
@@ -103,7 +104,7 @@ public class HomeActivity extends AppCompatActivity {
 
             @Override
             public void onContinue(MediaItem item) {
-                openDetail(item);
+                resumePlay(item);
             }
 
             @Override
@@ -391,6 +392,33 @@ public class HomeActivity extends AppCompatActivity {
         intent.putExtra("guid", item.guid);
         intent.putExtra("type", item.type != null ? item.type : "Movie");
         startActivity(intent);
+    }
+
+    /** 「继续观看」直接起播,跳到上次的位置,不走详情页。 */
+    private void resumePlay(MediaItem item) {
+        if (TextUtils.isEmpty(item.guid)) {
+            return;
+        }
+        Intent intent = new Intent(this, PlayerActivity.class);
+        intent.putExtra("guid", item.guid);
+        intent.putExtra("title", continueTitle(item));
+        if (item.ts > 0) {
+            // ts 是秒(long),播放页按 int 毫秒读,这里必须显式转型
+            intent.putExtra("start_ms", (int) (item.ts * 1000));
+        }
+        startActivity(intent);
+    }
+
+    private static String continueTitle(MediaItem item) {
+        String name = !TextUtils.isEmpty(item.parent_title) ? item.parent_title
+                : (!TextUtils.isEmpty(item.tv_title) ? item.tv_title : item.title);
+        if (name == null) {
+            return "";
+        }
+        if (item.episode_number > 0) {
+            return name + " 第" + item.episode_number + "集";
+        }
+        return name;
     }
 
     private void startCastService() {
