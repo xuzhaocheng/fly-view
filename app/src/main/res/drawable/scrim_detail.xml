@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 背景剧照上的遮罩:左侧压暗保证文字可读,底部再压一层让剧集区落地。 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="0"
+                android:startColor="#F2101418"
+                android:centerColor="#C0101418"
+                android:endColor="#80101418" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="90"
+                android:startColor="#E6101418"
+                android:centerColor="#40101418"
+                android:endColor="#00101418" />
+        </shape>
+    </item>
+</layer-list>

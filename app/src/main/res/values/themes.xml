@@ -7,4 +7,13 @@
         <item name="colorAccent">@color/accent</item>
         <item name="android:windowFullscreen">true</item>
     </style>
+
+    <!-- 详情页的小节标题:比正文弱一档,只做分组提示 -->
+    <style name="DetailSectionHeader">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/text_tertiary</item>
+        <item name="android:textSize">14sp</item>
+        <item name="android:layout_marginBottom">10dp</item>
+    </style>
 </resources>

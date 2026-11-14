@@ -14,10 +14,20 @@ import com.feiniu.tv.api.model.Season;
 import java.util.ArrayList;
 import java.util.List;
 
-/** 季列表适配器(季标题仅作标签展示,不可选中)。 */
+/** 季标签:可选,选中项用 accent 填充,焦点另加描边。 */
 public class SeasonAdapter extends RecyclerView.Adapter<SeasonAdapter.VH> {
 
+    public interface OnSeasonClick {
+        void onClick(Season season);
+    }
+
     private final List<Season> data = new ArrayList<>();
+    private final OnSeasonClick listener;
+    private String selectedGuid = "";
+
+    public SeasonAdapter(OnSeasonClick listener) {
+        this.listener = listener;
+    }
 
     public void submit(List<Season> seasons) {
         data.clear();
@@ -25,20 +35,32 @@ public class SeasonAdapter extends RecyclerView.Adapter<SeasonAdapter.VH> {
         notifyDataSetChanged();
     }
 
+    /** 只改高亮,不动列表内容。 */
+    public void setSelectedGuid(String guid) {
+        selectedGuid = guid == null ? "" : guid;
+        notifyDataSetChanged();
+    }
+
     @NonNull
     @Override
     public VH onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_category, parent, false);
+        View v = LayoutInflater.from(parent.getContext()).inflate(R.layout.item_season, parent, false);
         return new VH(v);
     }
 
     @Override
     public void onBindViewHolder(@NonNull VH holder, int position) {
         final Season s = data.get(position);
-        holder.tv.setText(s.title);
-        holder.tv.setFocusable(false);
-        holder.tv.setFocusableInTouchMode(false);
-        holder.tv.setTextColor(holder.tv.getContext().getResources().getColor(R.color.text_secondary));
+        holder.tv.setText(s.title == null ? "" : s.title);
+        holder.tv.setSelected(s.guid != null && s.guid.equals(selectedGuid));
+        holder.tv.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (listener != null) {
+                    listener.onClick(s);
+                }
+            }
+        });
     }
 
     @Override
@@ -51,7 +73,7 @@ public class SeasonAdapter extends RecyclerView.Adapter<SeasonAdapter.VH> {
 
         VH(@NonNull View itemView) {
             super(itemView);
-            tv = itemView.findViewById(R.id.tv_category);
+            tv = itemView.findViewById(R.id.tv_season);
         }
     }
 }

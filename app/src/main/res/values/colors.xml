@@ -5,6 +5,7 @@
     <color name="accent">#3B82F6</color>
     <color name="text_primary">#F5F7FA</color>
     <color name="text_secondary">#9AA4B2</color>
+    <color name="text_tertiary">#6B7683</color>
     <color name="focus_border">#B3FFFFFF</color>
     <color name="transparent">#00000000</color>
 </resources>

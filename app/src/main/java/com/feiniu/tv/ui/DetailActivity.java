@@ -34,12 +34,14 @@ import java.util.List;
 /** 详情页:电影直接播放,电视剧显示季/集。 */
 public class DetailActivity extends AppCompatActivity {
 
+    private ImageView imgBackdrop;
     private ImageView imgPoster;
     private TextView tvTitle;
     private TextView tvMeta;
     private TextView tvMediaInfo;
     private TextView tvOverview;
     private Button btnPlay;
+    private View llPlay;
     private LinearLayout llSeasons;
     private LinearLayout llEpisodes;
     private RecyclerView rvSeasons;
@@ -54,7 +56,12 @@ public class DetailActivity extends AppCompatActivity {
     private EpisodeAdapter episodeAdapter;
     private final List<Episode> episodeList = new ArrayList<>();
     private String currentEpisodeGuid = "";
+    /** 刚点播的集:服务端进度没跟上时,不能用旧的 play/info 把高亮改回去。 */
+    private String launchedEpisodeGuid = "";
+    private String selectedSeasonGuid = "";
     private String itemTitle = "";
+    /** onCreate 后紧跟的那次 onResume 不用刷新观看进度。 */
+    private boolean firstResume = true;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -75,18 +82,25 @@ public class DetailActivity extends AppCompatActivity {
         guid = getIntent().getStringExtra("guid");
         type = getIntent().getStringExtra("type");
 
+        imgBackdrop = findViewById(R.id.img_backdrop);
         imgPoster = findViewById(R.id.img_poster);
         tvTitle = findViewById(R.id.tv_title);
         tvMeta = findViewById(R.id.tv_meta);
         tvMediaInfo = findViewById(R.id.tv_media_info);
         tvOverview = findViewById(R.id.tv_overview);
         btnPlay = findViewById(R.id.btn_play);
+        llPlay = findViewById(R.id.ll_play_btn);
         llSeasons = findViewById(R.id.ll_seasons);
         llEpisodes = findViewById(R.id.ll_episodes);
         rvSeasons = findViewById(R.id.rv_seasons);
         rvEpisodes = findViewById(R.id.rv_episodes);
 
-        seasonAdapter = new SeasonAdapter();
+        seasonAdapter = new SeasonAdapter(new SeasonAdapter.OnSeasonClick() {
+            @Override
+            public void onClick(Season season) {
+                selectSeason(season);
+            }
+        });
         rvSeasons.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
         rvSeasons.setAdapter(seasonAdapter);
 
@@ -112,6 +126,51 @@ public class DetailActivity extends AppCompatActivity {
         });
 
         loadDetail();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (firstResume) {
+            firstResume = false;
+            return;
+        }
+        refreshCurrentEpisode();
+    }
+
+    /** 从播放页回来时,把「上次看到哪一集」重新对齐服务端。 */
+    private void refreshCurrentEpisode() {
+        if (TextUtils.isEmpty(guid) || (!"TV".equals(type) && !"Series".equals(type))) {
+            return;
+        }
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    com.feiniu.tv.api.model.PlayInfo pi = client.getPlayInfo(guid);
+                    final String cur = pi == null || pi.guid == null ? "" : pi.guid;
+                    if (cur.isEmpty()) {
+                        return;
+                    }
+                    if (!launchedEpisodeGuid.isEmpty()) {
+                        // 本页刚点播过,以用户点的为准;服务端的进度可能还停在别的集
+                        return;
+                    }
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            if (cur.equals(currentEpisodeGuid)) {
+                                return;
+                            }
+                            currentEpisodeGuid = cur;
+                            episodeAdapter.setCurrentGuid(cur);
+                            episodeAdapter.notifyDataSetChanged();
+                        }
+                    });
+                } catch (Exception ignored) {
+                }
+            }
+        }).start();
     }
 
     private void loadDetail() {
@@ -157,6 +216,15 @@ public class DetailActivity extends AppCompatActivity {
                             @Override
                             public void run() {
                                 currentEpisodeGuid = curEpGuid;
+                                if (seasons == null || seasons.isEmpty()) {
+                                    // 没拿到季信息时不装剧集页,退回单集播放按钮
+                                    llSeasons.setVisibility(View.GONE);
+                                    llEpisodes.setVisibility(View.GONE);
+                                    llPlay.setVisibility(View.VISIBLE);
+                                    return;
+                                }
+                                // 剧集页靠季/集选择起播,单独的播放按钮是多余的
+                                llPlay.setVisibility(View.GONE);
                                 bindSeasons(seasons, curSeasonGuid);
                             }
                         });
@@ -204,7 +272,12 @@ public class DetailActivity extends AppCompatActivity {
         }
         tvMeta.setText(meta.toString());
         tvOverview.setText(d.overview);
-        ImageLoader.load(this, imgPoster, client.imageUrl(d.posters, 400), token);
+        int radius = (int) (8 * getResources().getDisplayMetrics().density);
+        ImageLoader.load(this, imgPoster, client.imageUrl(d.posters, 400), token, radius);
+        String backdrop = client.imageUrl(d.backdrops, 1280);
+        if (!TextUtils.isEmpty(backdrop)) {
+            ImageLoader.load(this, imgBackdrop, backdrop, token);
+        }
     }
 
     /** 显示媒体信息:分辨率 / 视频编码 / 音频编码 / 文件大小 / 字幕数。 */
@@ -287,8 +360,41 @@ public class DetailActivity extends AppCompatActivity {
             }
         }
         if (target != null) {
-            loadEpisodes(target);
+            selectSeason(target);
         }
+    }
+
+    /**
+     * 剧集页没有播放按钮,系统不会自动把焦点给 RecyclerView 的子项,
+     * 这里兜底把焦点放到第一季上,否则方向键完全没反应。
+     */
+    private void ensureFocus() {
+        if (getCurrentFocus() != null) {
+            return;
+        }
+        rvSeasons.post(new Runnable() {
+            @Override
+            public void run() {
+                if (getCurrentFocus() != null) {
+                    return;
+                }
+                if (rvSeasons.getChildCount() > 0) {
+                    rvSeasons.getChildAt(0).requestFocus();
+                } else if (rvEpisodes.getChildCount() > 0) {
+                    rvEpisodes.getChildAt(0).requestFocus();
+                }
+            }
+        });
+    }
+
+    /** 换季:更新高亮并重新拉这一季的集。 */
+    private void selectSeason(Season season) {
+        if (season == null) {
+            return;
+        }
+        selectedSeasonGuid = season.guid == null ? "" : season.guid;
+        seasonAdapter.setSelectedGuid(selectedSeasonGuid);
+        loadEpisodes(season);
     }
 
     private void loadEpisodes(final Season season) {
@@ -310,6 +416,7 @@ public class DetailActivity extends AppCompatActivity {
                             if (idx >= 0) {
                                 rvEpisodes.scrollToPosition(idx);
                             }
+                            ensureFocus();
                         }
                     });
                 } catch (final Exception e) {
@@ -350,6 +457,12 @@ public class DetailActivity extends AppCompatActivity {
         if (episode.episode_number > 0) {
             title = itemTitle + " 第" + episode.episode_number + "集";
         }
+        // 立即把高亮挪到刚点的这一集,不用等服务端
+        currentEpisodeGuid = episode.guid == null ? "" : episode.guid;
+        launchedEpisodeGuid = currentEpisodeGuid;
+        episodeAdapter.setCurrentGuid(currentEpisodeGuid);
+        episodeAdapter.notifyDataSetChanged();
+
         Intent intent = new Intent(this, PlayerActivity.class);
         intent.putExtra("guid", episode.guid);
         intent.putExtra("next_guid", next);
