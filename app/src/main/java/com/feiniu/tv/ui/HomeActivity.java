@@ -20,6 +20,7 @@ import com.feiniu.tv.adapter.PosterAdapter;
 import com.feiniu.tv.api.FnApiClient;
 import com.feiniu.tv.api.model.MediaDb;
 import com.feiniu.tv.api.model.MediaItem;
+import com.feiniu.tv.util.ImageLoader;
 import com.feiniu.tv.util.Prefs;
 
 import java.util.ArrayList;
@@ -283,13 +284,29 @@ public class HomeActivity extends AppCompatActivity {
             loadSectionItems(section);
         }
         homeAdapter.submit(sections);
+        prefetchFirstScreen(continues, previews);
         lastLoadAt = System.currentTimeMillis();
         int target = pendingFocusPosition;
         pendingFocusPosition = -1;
         focusSection(target > 0 ? target : 1);
     }
 
-    /** 每个库取最近 20 条填进自己的行;「更多」里才是完整网格。 */
+    /** 首屏图片先落盘,滚到位时直接出图(只预取继续观看和媒体库卡片)。 */
+    private void prefetchFirstScreen(List<MediaItem> continues,
+                                     Map<String, List<MediaItem>> previews) {
+        for (MediaItem item : continues) {
+            ImageLoader.prefetch(this, client.imageUrl(item.posterGuid(), ImageLoader.W_WIDE),
+                    token, ImageLoader.W_WIDE);
+        }
+        for (List<MediaItem> list : previews.values()) {
+            for (MediaItem item : list) {
+                ImageLoader.prefetch(this, client.imageUrl(item.posterGuid(), ImageLoader.W_THUMB),
+                        token, ImageLoader.W_THUMB);
+            }
+        }
+    }
+
+    /** 每个库取最近 20 条填进自己的行;「更多」才是完整网格。 */
     private void loadSectionItems(final HomeSectionAdapter.Section section) {
         new Thread(new Runnable() {
             @Override
@@ -432,6 +449,28 @@ public class HomeActivity extends AppCompatActivity {
                 Toast.makeText(HomeActivity.this, "正在刷新…", Toast.LENGTH_SHORT).show();
             }
         });
+        final TextView cacheItem = addSettingItem("清理图片缓存", new Runnable() {
+            @Override
+            public void run() {
+                ImageLoader.clearCache(HomeActivity.this);
+                hideSettings();
+                Toast.makeText(HomeActivity.this, "图片缓存已清理", Toast.LENGTH_SHORT).show();
+            }
+        });
+        // 缓存大小要遍历目录,别在主线程算
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                final long size = ImageLoader.diskCacheSize(HomeActivity.this);
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        cacheItem.setText("清理图片缓存(" + (size / (1024 * 1024)) + " MB)");
+                    }
+                });
+            }
+        }, "img-cache-size").start();
+
         addSettingItem("退出登录", new Runnable() {
             @Override
             public void run() {
@@ -446,7 +485,7 @@ public class HomeActivity extends AppCompatActivity {
         }
     }
 
-    private void addSettingItem(String label, final Runnable action) {
+    private TextView addSettingItem(String label, final Runnable action) {
         TextView tv = new TextView(this);
         tv.setText(label);
         tv.setTextColor(getResources().getColor(R.color.text_primary));
@@ -467,6 +506,7 @@ public class HomeActivity extends AppCompatActivity {
             }
         });
         llSettingsPanel.addView(tv);
+        return tv;
     }
 
     private void hideSettings() {
