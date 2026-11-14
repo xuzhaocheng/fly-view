@@ -9,12 +9,17 @@
     </style>
 
     <!-- 详情页的小节标题:比正文弱一档,只做分组提示 -->
+    <!-- 小节标题压在剧照上,用主文字色加投影,任何背景都读得清 -->
     <style name="DetailSectionHeader">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>
-        <item name="android:textColor">@color/text_secondary</item>
-        <item name="android:textSize">15sp</item>
+        <item name="android:textColor">@color/text_primary</item>
+        <item name="android:textSize">16sp</item>
         <item name="android:textStyle">bold</item>
+        <item name="android:shadowColor">#CC000000</item>
+        <item name="android:shadowDx">0</item>
+        <item name="android:shadowDy">2</item>
+        <item name="android:shadowRadius">5</item>
         <item name="android:layout_marginBottom">10dp</item>
     </style>
 </resources>
