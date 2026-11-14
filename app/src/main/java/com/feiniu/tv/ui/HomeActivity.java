@@ -55,6 +55,13 @@ public class HomeActivity extends AppCompatActivity {
     private final List<MediaDb> libraries = new ArrayList<>();
     private final Map<String, List<MediaItem>> cache = new HashMap<>();
     private MediaDb currentLibrary;
+    /** 从播放页/详情页返回时不刷新,免得把刚看过的列表又重建一遍。 */
+    private boolean childActivityOpen = false;
+    /** 在库网格里被刷新的情况下,回首页时补一次重载。 */
+    private boolean homeStale = false;
+    private long lastLoadAt = 0;
+    /** 重建列表后要恢复到的行(适配器位置),-1 表示回到第一行。 */
+    private int pendingFocusPosition = -1;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -76,6 +83,57 @@ public class HomeActivity extends AppCompatActivity {
         bindViews();
         initLists();
         loadHome();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (client == null) {
+            return; // 没登录(或正在跳登录页),没有可刷的东西
+        }
+        if (childActivityOpen) {
+            childActivityOpen = false;
+            return;
+        }
+        if (lastLoadAt > 0 && System.currentTimeMillis() - lastLoadAt < 5000) {
+            return; // onCreate 里刚加载过,这次 resume 是它带来的
+        }
+        refresh();
+    }
+
+    /**
+     * 回到前台时重新拉数据:飞牛那边增删了资源(重新扫描媒体库),这里只有重拉才看得到。
+     * 首页在前台就重建,否则只清缓存并标记,等回首页再载。
+     */
+    private void refresh() {
+        cache.clear();
+        if (llHome != null && llHome.getVisibility() == View.VISIBLE) {
+            pendingFocusPosition = currentSectionPosition();
+            loadHome();
+            return;
+        }
+        homeStale = true;
+        if (currentLibrary != null) {
+            loadLibraryItems(currentLibrary);
+        }
+    }
+
+    /** 当前焦点落在首页哪一行(适配器位置);焦点不在 rv_home 里时返回 -1。 */
+    private int currentSectionPosition() {
+        View focused = getCurrentFocus();
+        if (focused == null) {
+            return -1;
+        }
+        View node = focused;
+        android.view.ViewParent parent = node.getParent();
+        while (parent != null && parent != rvHome) {
+            if (!(parent instanceof View)) {
+                return -1;
+            }
+            node = (View) parent;
+            parent = node.getParent();
+        }
+        return parent == rvHome ? rvHome.getChildAdapterPosition(node) : -1;
     }
 
     private void bindViews() {
@@ -155,6 +213,8 @@ public class HomeActivity extends AppCompatActivity {
     // ------------------------------------------------------------------ 数据
 
     private void loadHome() {
+        // 进来就记时间:onCreate 之后紧跟的 onResume 不应该再触发一次刷新
+        lastLoadAt = System.currentTimeMillis();
         new Thread(new Runnable() {
             @Override
             public void run() {
@@ -223,7 +283,10 @@ public class HomeActivity extends AppCompatActivity {
             loadSectionItems(section);
         }
         homeAdapter.submit(sections);
-        focusFirstSection();
+        lastLoadAt = System.currentTimeMillis();
+        int target = pendingFocusPosition;
+        pendingFocusPosition = -1;
+        focusSection(target > 0 ? target : 1);
     }
 
     /** 每个库取最近 20 条填进自己的行;「更多」里才是完整网格。 */
@@ -304,19 +367,34 @@ public class HomeActivity extends AppCompatActivity {
         currentLibrary = null;
         llLibrary.setVisibility(View.GONE);
         llHome.setVisibility(View.VISIBLE);
+        if (homeStale) {
+            // 在库里的时候被刷过,回首页补一次重载
+            homeStale = false;
+            loadHome();
+            return;
+        }
         focusFirstSection();
     }
 
     /** 焦点回到媒体库的第一张卡片,而不是顶部按钮。 */
     private void focusFirstSection() {
+        focusSection(1);
+    }
+
+    /** 把焦点放到第 {@code position} 行的第一张卡片上;行不可用时退回 rv_home。 */
+    private void focusSection(final int position) {
         if (homeAdapter.getItemCount() == 0) {
             return;
         }
         rvHome.post(new Runnable() {
             @Override
             public void run() {
+                int pos = position;
+                if (pos <= 0 || pos >= homeAdapter.getItemCount()) {
+                    pos = 1;
+                }
                 RecyclerView.ViewHolder vh =
-                        rvHome.findViewHolderForAdapterPosition(1);
+                        rvHome.findViewHolderForAdapterPosition(pos);
                 if (vh != null) {
                     View row = vh.itemView.findViewById(R.id.rv_row);
                     if (row instanceof RecyclerView && ((RecyclerView) row).getChildCount() > 0) {
@@ -346,6 +424,14 @@ public class HomeActivity extends AppCompatActivity {
 
     private void showSettings() {
         llSettingsPanel.removeAllViews();
+        addSettingItem("刷新媒体库", new Runnable() {
+            @Override
+            public void run() {
+                hideSettings();
+                refresh();
+                Toast.makeText(HomeActivity.this, "正在刷新…", Toast.LENGTH_SHORT).show();
+            }
+        });
         addSettingItem("退出登录", new Runnable() {
             @Override
             public void run() {
@@ -391,6 +477,7 @@ public class HomeActivity extends AppCompatActivity {
         Intent intent = new Intent(this, DetailActivity.class);
         intent.putExtra("guid", item.guid);
         intent.putExtra("type", item.type != null ? item.type : "Movie");
+        childActivityOpen = true;
         startActivity(intent);
     }
 
@@ -406,6 +493,7 @@ public class HomeActivity extends AppCompatActivity {
             // ts 是秒(long),播放页按 int 毫秒读,这里必须显式转型
             intent.putExtra("start_ms", (int) (item.ts * 1000));
         }
+        childActivityOpen = true;
         startActivity(intent);
     }
 
