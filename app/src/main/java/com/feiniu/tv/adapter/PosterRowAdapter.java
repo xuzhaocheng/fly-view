@@ -124,7 +124,7 @@ public class PosterRowAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
 
         int radius = (int) (6 * holder.itemView.getResources().getDisplayMetrics().density);
         ImageLoader.load(holder.itemView.getContext(), holder.img,
-                imageUrlBuilder.build(item, 400), token, radius);
+                imageUrlBuilder.build(item, ImageLoader.W_THUMB), token, radius);
 
         holder.frame.setOnClickListener(new View.OnClickListener() {
             @Override

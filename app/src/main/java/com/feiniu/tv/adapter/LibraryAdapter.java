@@ -81,7 +81,7 @@ public class LibraryAdapter extends RecyclerView.Adapter<LibraryAdapter.VH> {
                 int bl = i == 2 ? r : 0;
                 int br = i == 3 ? r : 0;
                 ImageLoader.loadCorners(holder.itemView.getContext(), slots[i],
-                        urlBuilder.build(item, 320), token, tl, tr, br, bl);
+                        urlBuilder.build(item, ImageLoader.W_THUMB), token, tl, tr, br, bl);
             }
         }
 

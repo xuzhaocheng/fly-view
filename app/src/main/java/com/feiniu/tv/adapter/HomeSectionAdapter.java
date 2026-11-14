@@ -12,6 +12,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.feiniu.tv.R;
 import com.feiniu.tv.api.model.MediaDb;
 import com.feiniu.tv.api.model.MediaItem;
+import com.feiniu.tv.util.ImageLoader;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -207,7 +208,7 @@ public class HomeSectionAdapter extends RecyclerView.Adapter<HomeSectionAdapter.
     }
 
     private String imageUrl(MediaItem item) {
-        return urlBuilder == null ? "" : urlBuilder.build(item, 960);
+        return urlBuilder == null ? "" : urlBuilder.build(item, ImageLoader.W_WIDE);
     }
 
 

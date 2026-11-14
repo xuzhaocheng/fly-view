@@ -14,6 +14,11 @@ import com.bumptech.glide.request.RequestOptions;
 /** 海报图加载:带鉴权头(Authorization + Cookie)。 */
 public final class ImageLoader {
 
+    /** 图片只按三个档位取,避免同一张海报因为宽度不同在磁盘里存好几份。 */
+    public static final int W_THUMB = 400;  // 海报卡片 / 网格 / 拼图
+    public static final int W_WIDE = 720;   // 16:9 横幅(继续观看、媒体库)
+    public static final int W_HERO = 1280;  // 详情页背景剧照
+
     private ImageLoader() {
     }
 

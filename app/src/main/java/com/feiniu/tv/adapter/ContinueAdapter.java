@@ -83,7 +83,7 @@ public class ContinueAdapter extends RecyclerView.Adapter<ContinueAdapter.VH> {
         if (imageUrlBuilder != null && holder.img != null) {
             int radius = (int) (8 * holder.itemView.getResources().getDisplayMetrics().density);
             ImageLoader.load(holder.itemView.getContext(), holder.img,
-                    imageUrlBuilder.build(item, 960), token, radius);
+                    imageUrlBuilder.build(item, ImageLoader.W_WIDE), token, radius);
         }
 
         holder.frame.setOnClickListener(new View.OnClickListener() {

@@ -349,8 +349,8 @@ public class DetailActivity extends AppCompatActivity {
         });
 
         int radius = (int) (8 * getResources().getDisplayMetrics().density);
-        ImageLoader.load(this, imgPoster, client.imageUrl(d.posters, 400), token, radius);
-        String backdrop = client.imageUrl(d.backdrops, 1280);
+        ImageLoader.load(this, imgPoster, client.imageUrl(d.posters, ImageLoader.W_THUMB), token, radius);
+        String backdrop = client.imageUrl(d.backdrops, ImageLoader.W_HERO);
         if (!TextUtils.isEmpty(backdrop)) {
             ImageLoader.load(this, imgBackdrop, backdrop, token);
         }

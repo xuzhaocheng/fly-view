@@ -77,7 +77,7 @@ public class PosterAdapter extends RecyclerView.Adapter<PosterAdapter.VH> {
         String title = item.tv_title != null && !item.tv_title.isEmpty() ? item.tv_title : item.title;
         holder.tvTitle.setText(title == null ? "" : title);
         if (imageUrlBuilder != null) {
-            String url = imageUrlBuilder.build(item, 400);
+            String url = imageUrlBuilder.build(item, ImageLoader.W_THUMB);
             int radius = (int) (6 * holder.itemView.getResources().getDisplayMetrics().density);
             ImageLoader.load(holder.itemView.getContext(), holder.img, url, token, radius);
         }
