@@ -499,7 +499,14 @@ public class DetailActivity extends AppCompatActivity {
         seasonAdapter.submit(seasons);
         Season target = null;
         if (seasons != null && !seasons.isEmpty()) {
+            // 默认选第一正季,别一进来落在「特别篇」上
             target = seasons.get(0);
+            for (Season s : seasons) {
+                if (s.season_number >= 1) {
+                    target = s;
+                    break;
+                }
+            }
             if (currentSeasonGuid != null && !currentSeasonGuid.isEmpty()) {
                 for (Season s : seasons) {
                     if (currentSeasonGuid.equals(s.guid)) {

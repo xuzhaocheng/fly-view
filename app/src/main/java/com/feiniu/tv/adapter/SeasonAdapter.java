@@ -51,7 +51,7 @@ public class SeasonAdapter extends RecyclerView.Adapter<SeasonAdapter.VH> {
     @Override
     public void onBindViewHolder(@NonNull VH holder, int position) {
         final Season s = data.get(position);
-        holder.tv.setText(s.title == null ? "" : s.title);
+        holder.tv.setText(s.displayTitle());
         holder.tv.setSelected(s.guid != null && s.guid.equals(selectedGuid));
         holder.tv.setOnClickListener(new View.OnClickListener() {
             @Override
