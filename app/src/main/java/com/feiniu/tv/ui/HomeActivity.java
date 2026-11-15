@@ -465,7 +465,10 @@ public class HomeActivity extends AppCompatActivity {
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
-                        cacheItem.setText("清理图片缓存(" + (size / (1024 * 1024)) + " MB)");
+                        String text = size >= 1024 * 1024
+                                ? String.format("%.1f MB", size / (1024.0 * 1024.0))
+                                : (size / 1024) + " KB";
+                        cacheItem.setText("清理图片缓存(" + text + ")");
                     }
                 });
             }
